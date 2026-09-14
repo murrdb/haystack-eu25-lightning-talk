@@ -81,53 +81,45 @@
 	<div class="reveal">
 		<div class="slides">
 			<section>
-				<h1 style="font-size: 2.6em; margin-bottom: 0;">Our Model Took 10 ms.</h1>
-				<h1 style="font-size: 2.6em;">Redis Took 200.</h1>
-				<div class="cols" style="margin: 10px auto; width: 60%;">
-					<div>
-						<p class="big">10 ms</p>
-						<p style="margin: 0;">ranking model</p>
-					</div>
-					<div>
-						<p class="big">200 ms</p>
-						<p style="margin: 0;">feature loading</p>
-					</div>
-				</div>
-				<p class="todo" style="margin: 10px auto;">TODO image: title picture, undecided</p>
+				<h1 style="font-size: 2.6em; margin-bottom: 0;">ranker model: 10 ms</h1>
+				<img src="img/intro.png" style="margin: 0px;" height="400px">
+				<h1 style="font-size: 2.6em;">redis fetch: 100ms</h1>
 				<p><small>Roman Grebennikov | Haystack EU 2026</small></p>
-				<aside class="notes">
-					Hi, I'm Roman. I maintain Metarank, it's an open-source reranker, LambdaMART, the usual. And for years I
-					had this itch. You send it 500 candidates, it pulls a hundred features per document, runs the model.
-					Model, ten milliseconds, nice. Whole request, two hundred. So where did the other 190 go? Redis. And I
-					picked Redis because Redis is fast, right? Yeah. One GET is fast. Five hundred documents times a hundred
-					fields is a totally different sport.
-				</aside>
 			</section>
 
 			<section>
-				<h2>Poor Man's Feature Store</h2>
+				<h2>TLDR of typical ranker design</h2>
 				<p><img src="img/metarank.png" height="480px" style="margin: 0;"></p>
-				<p style="font-size: 0.8em;">features built offline in batch, served online from Redis, the model waits on both</p>
-				<aside class="notes">
-					This is Metarank, and honestly every ranker I've seen. Telemetry comes in, a batch job turns it into
-					features, the fresh ones land in Redis. A request comes in, the ranker pulls features for every
-					candidate, runs the model. The model is the small box. The fetch is where the request goes to die.
-				</aside>
+				<p style="font-size: 0.8em;">features built offline in batch, served online from Redis</p>
 			</section>
 
 			<section>
-				<h2>More Candidates, More Waiting</h2>
-				<p><img src="img/metarank-latency.png" height="440px" style="margin: 0;"></p>
-				<p style="font-size: 0.8em;">Metarank, same model, more candidates: the feature fetch dominates</p>
-				<aside class="notes">
-					Models get faster every year. This line doesn't care. It's linear in candidates, because every
-					candidate is a feature fetch. You want depth 500 for recall, you pay 500 lookups, every request.
-					And every new feature makes the slope steeper.
-				</aside>
+				<h2>Candidates vs latency</h2>
+				<p><img src="img/latency.png" height="440px" style="margin: 0;"></p>
+				<p>Bigger depth = better relevance = worse latency</p>
+			</section>
+			<section>
+				<h2>Candidates vs $$$</h2>
+				<p><img src="img/deeper.png" height="440px" style="margin: 0;"></p>
+				<p>Bigger depth = more $$$</p>
+			</section>
+			<section>
+				<h2>Latency vs $$$</h2>
+				<p><img src="img/ctr_lat.png" height="440px" style="margin: 0;"></p>
+				<p>Worse latency = less $$$</p>
+			</section>
+			<section>
+				<h2>Latency vs costs</h2>
+				<p>True story: +50 new features</p>
+				<ul>
+					<li class="fragment"><strong>CTR</strong>: to sky!</li>
+					<li class="fragment"><strong>AWS bill</strong>: to the sky!</li>
+				</ul>
+				<p class="fragment">TLDR: infra started to eat margins</p>
 			</section>
 
 			<section>
-				<h2>Cold, Sparse, and Billed as Hot</h2>
+				<h2>Redis: cold but billed as hot</h2>
 				<table class="bench">
 					<thead>
 						<tr>
@@ -139,7 +131,7 @@
 					</thead>
 					<tbody>
 						<tr>
-							<td>vendor</td>
+							<td>document</td>
 							<td class="num">0.1%</td>
 							<td class="num">94%</td>
 							<td class="num">58%</td>
@@ -148,62 +140,56 @@
 							<td>query</td>
 							<td class="num">0.3%</td>
 							<td class="num">29%</td>
-							<td class="num">~40%</td>
+							<td class="num">40%</td>
 						</tr>
 						<tr>
-							<td>customer</td>
+							<td>user</td>
 							<td class="num">8.4%</td>
 							<td class="num">7.5%</td>
 							<td class="num">86%</td>
 						</tr>
 						<tr>
-							<td>vendor × query category</td>
+							<td>document × category</td>
 							<td class="num">6.0%</td>
 							<td class="num">49%</td>
 							<td class="num">96%</td>
 						</tr>
-						<tr>
-							<td>vendor × query</td>
+						<tr class="hot">
+							<td>document × query</td>
 							<td class="num">18.4%</td>
 							<td class="num">32%</td>
 							<td class="num">11%</td>
 						</tr>
 						<tr class="hot">
-							<td>customer × category</td>
+							<td>user × category</td>
 							<td class="num">31.4%</td>
 							<td class="num">1.1%</td>
 							<td class="num">37%</td>
 						</tr>
 						<tr class="hot">
-							<td>customer × vendor</td>
+							<td>user × document</td>
 							<td class="num">35.4%</td>
 							<td class="num">4.9%</td>
 							<td class="num">1.3%</td>
 						</tr>
 					</tbody>
 				</table>
-				<p style="font-size: 0.8em; margin: 10px 0 0 0;">entity tables &lt; 9% of rows, interaction tables &gt; 91%, half the cells NULL</p>
-				<p><small>restaurant ranking, one day &middot; Feast-style store, BigQuery → Redis HSET &middot; data layer ≈ 4× the ranker</small></p>
-				<aside class="notes">
-					And it gets worse when you look at which features. Query stuff, document stuff, few keys, hot, fine.
-					Then the interaction ones. This user with this query. This document for this query. That's a product. I
-					pulled real numbers from my day job at Delivery Hero yesterday, restaurant ranking. Vendor, query and
-					customer features together: under ten percent of the rows we store. Interaction features,
-					customer-times-vendor and friends: the other ninety. Now one day of traffic. Ninety-nine percent of the
-					customer-times-vendor keys the ranker asked for did not exist. And of the customer-times-vendor rows we
-					do store, that day touched five percent. A week, a quarter. And in the query-times-vendor table half
-					the cells are null, the conversion columns are 90 percent null. Now put that in Redis as hashes. Every
-					row is a hash with fifteen named fields in RAM, nulls included, cold or not. Feast-based store,
-					materialized from BigQuery, HSET layout, textbook. The data layer costs almost four times more than the
-					ranker it feeds. And there's no knob to turn, it's the layout, you can't fix it without redesigning the
-					whole thing.
-				</aside>
+				<p>85% of features are cold!</p>
 			</section>
-
+			<section>
+				<img src="img/pokemon.png" height="600px">
+			</section>
+			<section>
+				<h2><img src="img/logo.png" height="70px" style="margin: 0 15px 0 0; vertical-align: middle;">murrdb:
+					Redis for ML inference workloads</h2>
+				<p>
+					<img src="img/murr-overview2.png">
+				</p>
+			</section>
 			<section>
 				<h2><img src="img/logo.png" height="70px" style="margin: 0 15px 0 0; vertical-align: middle;">murrdb:
 					Redis for Batch Reads</h2>
-				<p>keys + columns in, Arrow IPC out, zero-copy into pandas/torch</p>
+				<p>Parquet+Arrow for IO: zero-copy into pandas/torch</p>
 				<table class="bench">
 					<thead>
 						<tr>
@@ -252,17 +238,9 @@
 						</tr>
 					</tbody>
 				</table>
-				<p><small>100M rows × 10 float32, 1000 keys per read &middot; github.com/murrdb/murr-benchmark</small></p>
-				<aside class="notes">
-					So, side project. Murrdb. Looks like Redis, but for batch reads. You send keys and column names, you
-					get Apache Arrow back over HTTP. Only the columns you asked for, and Arrow drops straight into pandas or
-					torch. No parsing. Look mom, zero copy. On a hundred million rows it's three times faster than a Redis
-					blob and twelve times faster than the hash thing, and in Python the gap gets wider because there's
-					nothing left to decode. Confession: version zero was an Arrow HTTP wrapper I vibe-coded in two days,
-					and it burned 90 percent of CPU inside arrow compute. Those kernels are great at scanning a billion rows
-					and terrible at fetching a thousand. So now storage is boring row-wise RocksDB, and Arrow lives only on
-					the wire.
-				</aside>
+				<p><small>100M rows × 10 float32, 1000 keys per read &middot;
+						github.com/murrdb/murr-benchmark</small>
+				</p>
 			</section>
 
 			<section>
@@ -285,17 +263,11 @@
 					</tbody>
 				</table>
 				<ul class="compact">
-					<li><span class="roadmap">ROADMAP</span><strong>SlateDB backend:</strong> nodes hold no state</li>
-					<li><span class="roadmap">ROADMAP</span><strong>sparse columns:</strong> empty cell = 0 bytes</li>
+					<li><span class="roadmap">ROADMAP</span><strong>SlateDB backend:</strong> nodes hold no state
+					</li>
+					<li><span class="roadmap">ROADMAP</span><strong>sparse columns:</strong> empty cell = 0 bytes
+					</li>
 				</ul>
-				<aside class="notes">
-					That's the latency half. Now the bill. Hot data in RAM, warm on NVMe, everything else on S3. I capped it
-					at two gigs of RAM and it still answers in six milliseconds. Postgres with the same cap, two hundred.
-					The trick is that NVMe is embarrassingly parallel: ten thousand reads at queue depth 256 is four
-					milliseconds, not a second. Two things are not shipped yet, roadmap tag, don't quote me. SlateDB as the
-					backend, so a node holds zero state and scaling down at night is just killing pods. And sparse columns,
-					empty cell, zero bytes. That one's the actual fix for the ninety-one percent.
-				</aside>
 			</section>
 
 			<section>
@@ -306,9 +278,11 @@ df = db.read("docs", keys=ids, columns=["ctr", "cvr"]).to_pandas()
 				</code></pre>
 				<div class="cols links">
 					<div>
-						<p><strong>murrdb:</strong> <a href="https://github.com/murrdb/murr">github.com/murrdb/murr</a></p>
+						<p><strong>murrdb:</strong> <a href="https://github.com/murrdb/murr">github.com/murrdb/murr</a>
+						</p>
 						<p><strong>benchmark:</strong> <a
-								href="https://github.com/murrdb/murr-benchmark">github.com/murrdb/murr-benchmark</a></p>
+								href="https://github.com/murrdb/murr-benchmark">github.com/murrdb/murr-benchmark</a>
+						</p>
 						<br>
 						<p>Redis for batch reads, with S3 behind it.</p>
 					</div>
@@ -317,11 +291,6 @@ df = db.read("docs", keys=ids, columns=["ctr", "cvr"]).to_pandas()
 						<p class="todo">TODO: check the QR still points to github.com/murrdb/murr</p>
 					</div>
 				</div>
-				<aside class="notes">
-					pip install murrdb. There's an embedded mode, so no server, no docker, nothing. The benchmark is a repo,
-					point it at your own Redis and tell me I'm wrong. It's early. Break it. And if your reranker is sitting
-					there waiting on feature fetch, the model is not the thing to fix first.
-				</aside>
 			</section>
 		</div>
 	</div>
