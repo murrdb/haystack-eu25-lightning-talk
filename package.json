@@ -1,0 +1,28 @@
+{
+	"name": "murrdb-haystack",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Our Model Took 10 ms. Redis Took 200. — Haystack EU 2026 lightning talk",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"start": "vite",
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"author": {
+		"name": "Grebennikov Roman",
+		"email": "grv@dfdx.me"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git://github.com/shuttie/murrdb-haystack.git"
+	},
+	"license": "MIT",
+	"dependencies": {
+		"reveal.js": "6.0.2"
+	},
+	"devDependencies": {
+		"vite": "^7.3.1"
+	}
+}
