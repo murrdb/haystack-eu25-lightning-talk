@@ -74,6 +74,17 @@
 		.links p {
 			font-size: 0.75em;
 		}
+
+		.reveal pre.quickstart {
+			width: 95%;
+			margin: 0 auto;
+			font-size: 0.51em;
+			line-height: 1.4;
+		}
+
+		.reveal pre.quickstart code {
+			max-height: none;
+		}
 	</style>
 </head>
 
@@ -202,7 +213,7 @@
 					</thead>
 					<tbody>
 						<tr class="murr">
-							<td>murr 0.2</td>
+							<td>murr 0.2 mmap</td>
 							<td>native</td>
 							<td class="num">7.5 GiB</td>
 							<td class="num">0.27 ms</td>
@@ -210,17 +221,17 @@
 						</tr>
 						<tr>
 							<td>Dragonfly 1.31</td>
-							<td>blob</td>
-							<td class="num">7.3 GiB</td>
-							<td class="num">0.30 ms</td>
-							<td class="num">1.68 ms</td>
+							<td>HSET</td>
+							<td class="num">20.1 GiB</td>
+							<td class="num">2.82 ms</td>
+							<td class="num">8.25 ms</td>
 						</tr>
 						<tr>
-							<td>Redis 8.6</td>
-							<td>blob</td>
-							<td class="num">9.6 GiB</td>
-							<td class="num">0.82 ms</td>
-							<td class="num">2.46 ms</td>
+							<td>Valkey 8.1</td>
+							<td>HSET</td>
+							<td class="num">19.4 GiB</td>
+							<td class="num">3.20 ms</td>
+							<td class="num">8.63 ms</td>
 						</tr>
 						<tr>
 							<td>Redis 8.6</td>
@@ -244,24 +255,48 @@
 			</section>
 
 			<section>
-				<h2>Hot in RAM. Cold on S3. Nulls Free.</h2>
-				<p><img src="img/overview.png" height="260px" style="margin: 0;"></p>
+				<h2>Hot in RAM. Warm on NVMe.</h2>
+				<br>
+				<p style="font-size: 0.7em; margin: 4px 0;">disk mode, RAM capped at 2 GiB, 100M rows</p>
 				<table class="bench">
 					<thead>
 						<tr>
-							<th>RAM capped at 2 GiB, 100M rows</th>
-							<th class="num">murr</th>
-							<th class="num">Postgres</th>
+							<th>engine</th>
+							<th>layout</th>
+							<th class="num">RAM</th>
+							<th class="num">disk</th>
+							<th class="num">Rust p50</th>
+							<th class="num">Python p50</th>
 						</tr>
 					</thead>
 					<tbody>
+						<tr class="murr">
+							<td>murr 0.2 block</td>
+							<td>native</td>
+							<td class="num">1.7 GiB</td>
+							<td class="num">5.8 GiB</td>
+							<td class="num">6.33 ms</td>
+							<td class="num">6.69 ms</td>
+						</tr>
 						<tr>
-							<td>p50, 1000 keys × 10 cols</td>
-							<td class="num"><strong>6.3 ms</strong></td>
+							<td>PostgreSQL 18</td>
+							<td>blob</td>
+							<td class="num">2.0 GiB</td>
+							<td class="num">12.8 GiB</td>
 							<td class="num">189 ms</td>
+							<td class="num">171 ms</td>
+						</tr>
+						<tr>
+							<td>PostgreSQL 18</td>
+							<td>col-per-feature</td>
+							<td class="num">2.0 GiB</td>
+							<td class="num">12.7 GiB</td>
+							<td class="num">217 ms</td>
+							<td class="num">153 ms</td>
 						</tr>
 					</tbody>
 				</table>
+				<br>
 				<ul class="compact">
 					<li><span class="roadmap">ROADMAP</span><strong>SlateDB backend:</strong> nodes hold no state
 					</li>
@@ -271,26 +306,35 @@
 			</section>
 
 			<section>
-				<h2>pip install murrdb</h2>
-				<pre><code data-trim data-noescape class="language-python">
-db = Murr.start_local(cache_dir="/tmp/murr")   # embedded, no server
-df = db.read("docs", keys=ids, columns=["ctr", "cvr"]).to_pandas()
+				<h2 style="margin-bottom: 10px;">pip install murrdb</h2>
+				<pre class="quickstart"><code data-trim data-noescape class="language-python">
+# embedded, no server
+db = Murr.start_local(cache_dir="/tmp/murr")                
+db.create_table("docs", schema=...)
+
+# write a batch
+df = pd.DataFrame({
+		"doc_id": ["doc_1", "doc_2", "doc_3"],   
+		"score":  [0.95, 0.87, 0.72]
+	})
+db.write("docs", pa.Table.from_pandas(df))
+
+# read it back
+res = db.read("docs", keys=["doc_1", "doc_3"], columns=["score"])  
+
+# look mom zero copy!			  
+print(res.to_pandas())            
 				</code></pre>
-				<div class="cols links">
-					<div>
-						<p><strong>murrdb:</strong> <a href="https://github.com/murrdb/murr">github.com/murrdb/murr</a>
-						</p>
-						<p><strong>benchmark:</strong> <a
-								href="https://github.com/murrdb/murr-benchmark">github.com/murrdb/murr-benchmark</a>
-						</p>
-						<br>
-						<p>Redis for batch reads, with S3 behind it.</p>
-					</div>
-					<div>
-						<p><img src="img/qr.png" height="220px" style="margin: 0;"></p>
-						<p class="todo">TODO: check the QR still points to github.com/murrdb/murr</p>
-					</div>
-				</div>
+			</section>
+			<section>
+				<h2>is it on prod? NO!</h2>
+				<ul>
+					<li><strong>github</strong>: github.com/murrdb/murr</li>
+					<li><strong>bindings</strong>: Python/Java/Rust</li>
+					<li><strong>benchmark</strong>: github.com/murrdb/murr-benchmark</li>
+					<li><strong>linkedin:</strong></li>
+				</ul>
+				<p><img src="img/qr.png" height="300px"></p>
 			</section>
 		</div>
 	</div>
